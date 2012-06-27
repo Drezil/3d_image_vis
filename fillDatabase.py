@@ -16,7 +16,7 @@ def usage():
 	--verbose
 """
 def pointImage(file):
-	im = cv.LoadImage("testdata/test.jpg")
+	im = cv.LoadImage(file)
 	return cv.ExtractSURF(im, None, cv.CreateMemStorage(), (1, 5000, 3, 4))
 
 def savePoints(file, desc, cursor):
@@ -62,6 +62,7 @@ if __name__=="__main__":
 		if datadir == None:
 			print "-d must be present!"
 			sys.exit(2)
+		print "reading data from %s..." % datadir
 		files = [f for f in os.listdir(datadir)
 			if os.path.isfile(os.path.join(datadir, f))]
 		i = 1
@@ -76,7 +77,7 @@ if __name__=="__main__":
 			(kp, desc) = pointImage(os.path.join(datadir,f))
 			savePoints(f, desc, c)
 			duration = time.time() - now
-			print "done. Took %fs" % (duration)
+			print "done. Took %fs for %d descriptors" % (duration,len(desc))
 			if i % 100 == 0:
 				conn.commit()
 			i +=1
