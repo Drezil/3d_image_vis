@@ -16,8 +16,12 @@ def usage():
 	--verbose
 """
 def pointImage(file):
-	im = cv.LoadImage(file)
-	return cv.ExtractSURF(im, None, cv.CreateMemStorage(), (1, 5000, 3, 4))
+	try: 
+		im = cv.LoadImage(file)
+		return cv.ExtractSURF(im, None, cv.CreateMemStorage(), (1, 250, 3, 4))
+	except Exception:
+		print >> sys.stderr, "ERROR: cannot read/extract SURF out of %s" % file
+		return ([],[])
 
 def savePoints(file, desc, cursor):
 	for d in desc:
