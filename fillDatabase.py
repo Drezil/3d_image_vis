@@ -4,6 +4,7 @@ import os, os.path
 import sys
 import getopt
 import sqlite3
+import time
 
 def usage():
 	print """
@@ -18,26 +19,24 @@ def pointImage(file):
 	im = cv.LoadImage("testdata/test.jpg")
 	return cv.ExtractSURF(im, None, cv.CreateMemStorage(), (1, 5000, 3, 4))
 
-def savePoints(desc,conn):
+def savePoints(file, desc, cursor):
 	for d in desc:
 		if len(d) != 128:
 			print "ERROR: image has wrong size of descriptor"
 			return
-		c = conn.cursor()
-		statement = "INSERT INTO descriptors VALUES ("
+		statement = "INSERT INTO descriptors VALUES (\"%s\"" % file
 		for f in d:
-			statement += "%f," % f
-		statement = statement[:len(statement)-2]
+			statement += ",%f" % f
+		#statement = statement[:len(statement)-2]
 		statement += ")"
-		c.execute(statement)
-		conn.commit()
-		c.close()
+		cursor.execute(statement)
 	
-def createDatabase():
-	conn = sqlite3.connect('surf_descriptors.db')
+def createDatabase(database):
+	print "creating database in file '%s'" % database
+	conn = sqlite3.connect(database)
 	c = conn.cursor()
-	statement = "CREATE TABLE descriptors (d_1 float"
-	for i in range(2,129):
+	statement = "CREATE TABLE descriptors (name text"
+	for i in range(1,129):
 		statement += ", d_%d float" % i
 	statement += ")"
 	c.execute(statement)
@@ -47,7 +46,8 @@ def createDatabase():
 if __name__=="__main__":
 	try:
 		datadir = None
-		opts, args = getopt.getopt(sys.argv[1:], "hd:v", ["help", "dir","verbose"])
+		database = "surf_descriptors.db"
+		opts, args = getopt.getopt(sys.argv[1:], "hd:vb:", ["help", "dir","verbose","database"])
 		for opt, arg in opts:                
 			if opt in ("-h", "--help"):      
 				usage()                     
@@ -56,7 +56,9 @@ if __name__=="__main__":
 				global _debug               
 				_debug = 1                  
 			elif opt in ("-d", "--dir"): 
-				datadir = arg  
+				datadir = arg
+			elif opt in ("-b", "--database"):
+				database = arg
 		if datadir == None:
 			print "-d must be present!"
 			sys.exit(2)
@@ -64,13 +66,19 @@ if __name__=="__main__":
 			if os.path.isfile(os.path.join(datadir, f))]
 		i = 1
 		length = len(files)
-		if not os.path.isfile("surf_descriptors.db"):
-			createDatabase()
-		conn = sqlite3.connect('surf_descriptors.db')
+		if not os.path.isfile(database):
+			createDatabase(database)
+		conn = sqlite3.connect(database)
+		c = conn.cursor()
 		for f in files:
+			print "processing file %d/%d: %s" % (i,len(files),os.path.join(datadir,f))
+			now = time.time()
 			(kp, desc) = pointImage(os.path.join(datadir,f))
-			savePoints(desc, conn)
-			print "done with file %d/%d: %s" % (i,len(files),os.path.join(datadir,f))
+			savePoints(f, desc, c)
+			duration = time.time() - now
+			print "done. Took %fs" % (duration)
+			if i % 100 == 0:
+				conn.commit()
 			i +=1
 	except getopt.GetoptError:           
         	usage()                          
