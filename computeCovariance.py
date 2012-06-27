@@ -44,7 +44,7 @@ def setUpDatabase(database):
 	conn.commit()
 	c.close()
 
-def save(eval,evec,corsor):
+def save(eval,evec,cursor):
 	for i in range(1,len(eval)):
 		statement = "INSERT INTO eigendata VALUES (\"%f\"" % eval[i]
         	for ev in evec[i]:
@@ -84,7 +84,7 @@ if __name__=="__main__":
 		eval, evec = numpy.linalg.eig(cov)
 		if _debug == 1:
 			print "saving..."
-		save(eval,evec,c)
+		save(eval[:30],evec[:30],c)
 		conn.commit()
 		c.close()
 		print "eigenvalues: %s" % eval[:30]
