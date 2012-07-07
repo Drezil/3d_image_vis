@@ -7,7 +7,7 @@ import sqlite3
 import time
 import numpy
 
-EIGENDATA_LIMIT = 50 # only use the first 30 eigenvectors/eigenvalues
+EIGENDATA_LIMIT = 128 # limit saved eigendata - beware of lowering this, all EVec are needed later!
 
 def usage():
 	print """
@@ -52,11 +52,14 @@ def save(eval,evec,avg,cursor):
 		statement = "INSERT INTO eigendata VALUES (\"%f\"" % cv.Get1D(eval,i-1)[0]
         	for j in range(1,129):
         		statement += ",%f" % cv.Get2D(evec,i-1,j-1)[0]
-	        #statement = statement[:len(statement)-2]
         	statement += ")"
 	        cursor.execute(statement)
-	#TODO: save AVG
-	print "Todo: save AVG: %s" % avg
+	print "HINT: saving AVG with Eigenvalue -1."
+	statement = "INSERT INTO eigendata VALUES (-1"
+	for j in range(1,129):
+		statement += ",%f" % cv.Get1D(avg,j-1)[0]
+	statement += ")"
+	cursor.execute(statement)
 
 
 if __name__=="__main__":
@@ -83,7 +86,7 @@ if __name__=="__main__":
 		if _debug == 1:
 			print "reading out data..."
 		cov = cv.CreateMat(128,128,cv.CV_64FC1)
-		avg = cv.CreateMat(128,1,cv.CV_64FC1)
+		avg = cv.CreateMat(1,128,cv.CV_64FC1)
 		vects = getVectors(c)
 		if _debug == 1:
 			print "calculating covariance..."
