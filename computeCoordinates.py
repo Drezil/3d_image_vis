@@ -20,6 +20,10 @@ def usage():
 	--verbose
 """
 
+def getAvg(cursor)
+	#todo
+	return []
+
 def getNames(cursor):
 	statement = "SELECT DISTINCT name from descriptors"
 	cursor.execute(statement)
@@ -78,6 +82,8 @@ def save(name, channel, kmean,cursor):
 
 
 if __name__=="__main__":
+	print "incomplete!"
+	sys.exit(1)
 	global _debug 
 	_debug = 0
 	try:
@@ -114,13 +120,20 @@ if __name__=="__main__":
 				concept:
 				    1. (vec - avg) converted to eigenvectors-base => 5 Vectors per channel, 20 Vectors total.
 				    2. for every channel calculate the difference to all other images
-					a) upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
+					a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
 					b) save greatest entry over all matrices
 					c) divide matrices by that factor
-					d) distance between a and b is now the 2-norm of all matrix-entries.
+					d) distance between a and b is now the 2-norm of all matrix-entries. (üpper triangle)
 				    3. save distances in a matrix
 				    4. use this matrix as 3dimensional graph-weights (0: loose, 1: identical match)
-				    5. calculate coordinates out of this graph.
+				    5. calculate coordinates out of this graph (fruckterman_reingold_3d).
+				    
+				    faster approach:
+				    2. for every channel calculate the difference to all other images
+					a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
+					b) distance between a and b is now the 1-norm or maximumns-norm of all matrix-entries. (üpper triangle)
+				    ...
+				    4. use this matrix as 3dimensional graph-weights (0: loose, x: identical match), x >> 0
 				"""
 			if i % 10 == 0:#dont always commit. sqlite is slooooow when committing small changes.
 				conn.commit()
