@@ -48,7 +48,7 @@ def setUpDatabase(database):
 	c.close()
 
 def save(eval,evec,avg,cursor):
-	for i in range(1,EIGENDATA_LIMIT):
+	for i in range(1,EIGENDATA_LIMIT+1):
 		statement = "INSERT INTO eigendata VALUES (\"%f\"" % cv.Get1D(eval,i-1)[0]
         	for j in range(1,129):
         		statement += ",%f" % cv.Get2D(evec,i-1,j-1)[0]
@@ -104,7 +104,7 @@ if __name__=="__main__":
 		conn.commit()
 		c.close()
 		eval = []
-		for i in range(1,EIGENDATA_LIMIT):
+		for i in range(1,EIGENDATA_LIMIT+1):
 			eval.append(cv.Get1D(eigval,i-1)[0])
 		print "eigenvalues: %s" % eval
 	except getopt.GetoptError:           

@@ -106,7 +106,7 @@ if __name__=="__main__":
 		for name in namelist:
 			i += 1
 			if _debug == 1:
-			print "Calculating representants for: (%d/%d)" % (i,length)
+				print "Calculating representants for: (%d/%d)" % (i,length)
 			for channel in channellist:
 				#cluster to n representants.
 				vects = getVectors(name[0],channel[0],c)

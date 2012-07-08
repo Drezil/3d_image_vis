@@ -7,31 +7,33 @@ import getopt
 import sqlite3
 import time
 import numpy
+import networkx as nx
+import matplotlib.pyplot as plt
 
 EIGENDATA_LIMIT = 50 # only use the first 30 eigenvectors/eigenvalues
 
-	"""
-	concept:
-	    1. (vec - avg) converted to eigenvectors-base => 5 Vectors per channel, 20 Vectors total.
-	    2. for every channel calculate the difference to all other images
-		a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
-		b) save greatest entry over all matrices
-		c) divide matrices by that factor
-		d) distance between a and b is now the 2-norm of all matrix-entries. (üpper triangle)
-	    3. save distances in a matrix
-	    4. use this matrix as 3dimensional graph-weights (0: loose, 1: identical match)
-	    5. calculate coordinates out of this graph (fruckterman_reingold_3d).
-	    
-	    faster approach:
-	    2. for every channel calculate the difference to all other images
-		a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
-		b) distance between a and b is now the 1-norm or maximumns-norm of all matrix-entries. (üpper triangle)
-	    ...
-	    4. use this matrix as 3dimensional graph-weights (0: loose, x: identical match), x >> 0
-	    
-	    
-	    faster approach gets realized first,
-	"""
+"""
+concept:
+    1. (vec - avg) converted to eigenvectors-base => 5 Vectors per channel, 20 Vectors total.
+    2. for every channel calculate the difference to all other images
+	a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
+	b) save greatest entry over all matrices
+	c) divide matrices by that factor
+	d) distance between a and b is now the 2-norm of all matrix-entries. (upper triangle)
+    3. save distances in a matrix
+    4. use this matrix as 3dimensional graph-weights (0: loose, 1: identical match)
+    5. calculate coordinates out of this graph (fruckterman_reingold_3d).
+    
+    faster approach:
+    2. for every channel calculate the difference to all other images
+	a) foreach image-pair create upper 5x5 triangle-matrix with vector-distance between pairwise vectors in channels of a and b
+	b) distance between a and b is now the 1-norm or maximumns-norm of all matrix-entries. (upper triangle)
+    ...
+    4. use this matrix as 3dimensional graph-weights (0: loose, x: identical match), x >> 0
+    
+    
+    faster approach gets realized first,
+"""
 
 
 def usage():
@@ -44,12 +46,12 @@ def usage():
 	--verbose
 """
 
-def getEigenBase(cursor)
+def getEigenBase(cursor):
 	statement = "SELECT eigenvalue"
 	for i in range(1,129):
 		statement += ", d_%d" %i
 	statement += " from eigendata"
-	cursor.execute(statement, (name, channel))
+	cursor.execute(statement)
 	res = cursor.fetchall()
 	#convert to cv
 	eigenbase = []
@@ -68,27 +70,31 @@ def getEigenBase(cursor)
 			eigenvalues.append(r[0])
 		else:
 			#avg
-			avg = numpy.array([r])
+			avg = numpy.array([r[1:]])
 	
-	#convert eigenvalues to 32 bit cv-matrix
-	eigenvalvec = numpy.array([eigenvalues])
-	vec = cv.fromarray(eigenvalvec)
-	realvec = cv.CreateMat(vec.rows,vec.cols,cv.CV_32FC1)
-	cv.Convert(vec,realvec)
-	reteigenval = realvec
-	
-	#convert eigenvalues to 32 bit cv-matrix
-	avgvec = numpy.array([eigenvalues])
-	vec = cv.fromarray(avgvec)
-	realvec = cv.CreateMat(vec.rows,vec.cols,cv.CV_32FC1)
-	cv.Convert(vec,realvec)
-	retavgvec = realvec
-	return (reteigenval, cv.fromarray(numpy.vstack(eigenbase)), reitavgvec)
+	return (numpy.asarray(eigenvalues), numpy.vstack(eigenbase), avg)
 	
 #TODO: get representants in eigenbase
 
-def getRepresentants(name,channel,eigenbase,cursor):
-	pass
+def getRepresentants(name,channel,ieigenbase,cursor):
+	statement = "SELECT d_1"
+	for i in range(2,129):
+		statement += ", d_%d" %i
+	statement += " from image_cluster WHERE image=? and channel=?"
+	cursor.execute(statement, (name, channel))
+	res = cursor.fetchall()
+	#convert to cv
+	vecs = []
+	ret = []
+	for r in res:
+		toappend = numpy.array([r])
+		vec = cv.fromarray(toappend)
+		realvec = cv.CreateMat(vec.rows,vec.cols,cv.CV_32FC1)
+		cv.Convert(vec,realvec)
+		vecs.append(realvec)
+	for vec in vecs:
+		ret.append(ieigenbase * numpy.transpose(numpy.asarray(vec)))
+	return ret
 	
 
 def getNames(cursor):
@@ -120,37 +126,34 @@ def getVectors(name,channel,cursor):
 		ret.append(realvec)
 	return numpy.vstack(ret)
 	
+def weightedNorm(a,b,weights,norm=2):
+	sum = 0
+	for i in range(0,len(a)):
+		sum += (a[i]*b[i]*weights[i]) ** norm
+	return numpy.float64(sum) ** (1.0/norm)
+
 def setUpDatabase(database):
 	if _debug == 1:
 		print "setting up database..."
 	c = conn.cursor()
-	c.execute("DROP Table if exists image_cluster");
-        statement = "CREATE TABLE image_cluster (image text, channel text "
-        for i in range(1,129):
-                statement += ", d_%d float" % i
-        statement += ")"
+	c.execute("DROP Table if exists image_coordinates");
+        statement = "CREATE TABLE image_coordinates (image text, x double, y double, z double)"
         c.execute(statement)
-        statement = "CREATE INDEX IF NOT EXISTS id_image_cluster_image on image_cluster (image ASC)"
+        statement = "CREATE INDEX IF NOT EXISTS id_image_coordinates_image on image_coordinates (image ASC)"
         c.execute(statement)
-        statement = "CREATE INDEX IF NOT EXISTS id_image_cluster_imagechannel on image_cluster (image ASC,channel ASC)"
+        statement = "CREATE INDEX IF NOT EXISTS id_image_coordinates_coordinates on image_coordinates (x ASC, y ASC, z ASC)"
         c.execute(statement)
 	conn.commit()
 	c.close()
 
-def save(name, channel, kmean,cursor):
-	#kmean = (retval,bestLables, centers)
-	#-> just save centers.
-	for mean in kmean[2]:
-		statement = "INSERT INTO image_cluster VALUES (\'%s\',\'%s\'" % (name,channel)
-        	for i in mean:
-        		statement += ",%f" % i
-        	statement += ")"
-	        cursor.execute(statement)
+def save(names,coords,cursor,LIMIT):
+	for i in range(0,len(names[:LIMIT])):
+		(x,y,z) = coords[i]
+		statement = "INSERT INTO image_coordinates VALUES (\'%s\',\'%f\',\'%f\',\'%f\')" % (names[i][0],x,y,z)
+		cursor.execute(statement)
 
 
 if __name__=="__main__":
-	print "incomplete!"
-	sys.exit(1)
 	global _debug 
 	_debug = 0
 	try:
@@ -175,26 +178,31 @@ if __name__=="__main__":
 		namelist = getNames(c)
 		channellist = getChannels(c)
 		(eigval, eigbase, avg) = getEigenBase(c)
+		(_, inveigbase) = cv2.invert(eigbase)
+		inveigbase = numpy.matrix(inveigbase)
 		processed = 0
 		length = len(namelist)
 		matrix = []
-		for name in namelist:
+		LIMIT = len(namelist)
+		start = time.time()
+		last = start
+		for name in namelist[:LIMIT]:
 			processed += 1
 			if _debug == 1:
-			print "Calculating representants for: (%d/%d)" % (processed,length)
-			representants = getRepresentants(name[0],channel[0],eigbase,c)
+				print "processing: (%d/%d)..." % (processed,length)
+			representants = dict()
+			for channel in channellist:
+				representants[channel[0]] = getRepresentants(name[0],channel[0],inveigbase,c)
 			row = [];
-			for nameb in namelist:
-				if name[0] == nameb[0]:
-					continue
+			for nameb in namelist[:LIMIT]:
 				distance = []
 				for channel in channellist:
-					representants_b = getRepresentants(nameb[0],channel[0],eigbase,c)
+					representants_b = getRepresentants(nameb[0],channel[0],inveigbase,c)
 					for i in range(0,len(representants)):
-						for j in range(i,len(representants_b):
-							a = cv2.subtract(representants[i],avg)
-							b = cv2.subtract(representants_b[j],avg)
-							dist = cv2.norm(a,b, cv2.NORM_L2)
+						for j in range(i,len(representants_b)):
+							a = representants[channel[0]][i] - numpy.transpose(avg)
+							b = representants_b[j] - numpy.transpose(avg)
+							dist = weightedNorm(a,b,eigval,2)
 							distance.append(dist)
 				#dist now holds the distances in the upper triangle-matrix
 				sum = 0;
@@ -203,9 +211,24 @@ if __name__=="__main__":
 					sum += d
 				row.append(d)
 			matrix.append(numpy.array([row]))
+			if _debug == 1:
+				now = time.time()
+				print "took: %fs. ETA: %fs (%.2f%% done.)..." % (now-last,(now-start)/processed*(length-processed),float(processed)/length)
+				last = now
+			
 		adjacency = numpy.vstack(matrix)
 		
-		#TODO: calculate 3d-coords from graph-weights
+		print "allocating graph"
+		
+		G = nx.Graph()
+		for i in range(0,len(namelist[:LIMIT])):
+			for j in range(0,len(namelist[:LIMIT])):
+				G.add_edge(i,j,weight=adjacency[j][i])
+		pos = nx.spring_layout(G,3)
+		#nx.draw(G,pos)
+		#plt.show()
+		
+		save(namelist,pos,c,LIMIT)
 		
 		if _debug == 1:
 			print "done."
