@@ -8,7 +8,6 @@ import sqlite3
 import time
 import numpy
 import networkx as nx
-import matplotlib.pyplot as plt
 
 EIGENDATA_LIMIT = 50 # only use the first 30 eigenvectors/eigenvalues
 
@@ -129,7 +128,7 @@ def getVectors(name,channel,cursor):
 def weightedNorm(a,b,weights,norm=2):
 	sum = 0
 	for i in range(0,len(a)):
-		sum += (a[i]*b[i]*weights[i]) ** norm
+		sum += (abs((a[i]-b[i]))*weights[i]) ** norm
 	return numpy.float64(sum) ** (1.0/norm)
 
 def setUpDatabase(database):
@@ -181,27 +180,32 @@ if __name__=="__main__":
 		(_, inveigbase) = cv2.invert(eigbase)
 		inveigbase = numpy.matrix(inveigbase)
 		processed = 0
-		length = len(namelist)
 		matrix = []
 		LIMIT = len(namelist)
+		length = min(LIMIT,len(namelist))
 		start = time.time()
 		last = start
+		representants = dict()
 		for name in namelist[:LIMIT]:
+			representants[name[0]] = dict()
+			for channel in channellist:
+				representants[name[0]][channel[0]] = getRepresentants(name[0],channel[0],inveigbase,c)
+		for name in range(0,len(namelist[:LIMIT])-1):
 			processed += 1
 			if _debug == 1:
 				print "processing: (%d/%d)..." % (processed,length)
-			representants = dict()
-			for channel in channellist:
-				representants[channel[0]] = getRepresentants(name[0],channel[0],inveigbase,c)
+			#representants = dict()
+			#for channel in channellist:
+			#	representants[channel[0]] = getRepresentants(name[0],channel[0],inveigbase,c)
 			row = [];
-			for nameb in namelist[:LIMIT]:
+			for nameb in range(name+1,len(namelist[:LIMIT])):
 				distance = []
 				for channel in channellist:
-					representants_b = getRepresentants(nameb[0],channel[0],inveigbase,c)
-					for i in range(0,len(representants)):
-						for j in range(i,len(representants_b)):
-							a = representants[channel[0]][i] - numpy.transpose(avg)
-							b = representants_b[j] - numpy.transpose(avg)
+					#representants_b = getRepresentants(nameb[0],channel[0],inveigbase,c)
+					for i in range(0,len(representants[namelist[name][0]])):
+						for j in range(i,len(representants[namelist[nameb][0]])):
+							a = representants[namelist[name][0]][channel[0]][i] - numpy.transpose(avg)
+							b = representants[namelist[nameb][0]][channel[0]][j] - numpy.transpose(avg)
 							dist = weightedNorm(a,b,eigval,2)
 							distance.append(dist)
 				#dist now holds the distances in the upper triangle-matrix
@@ -210,25 +214,31 @@ if __name__=="__main__":
 					#just sum up - TODO: could be weighted by channel, channels could get normalized, etc.
 					sum += d
 				row.append(d)
-			matrix.append(numpy.array([row]))
+			matrix.append(numpy.array(row))
 			if _debug == 1:
 				now = time.time()
-				print "took: %fs. ETA: %fs (%.2f%% done.)..." % (now-last,(now-start)/processed*(length-processed),float(processed)/length)
+				total = (length**2) / 2
+				done = length*processed - processed**2 / 2
+				print "took: %fs. ETA: %fs (%.2f%% done.)..." % (now-last,(now-start)/done*(total-done),done*100.0/total)
 				last = now
-			
-		adjacency = numpy.vstack(matrix)
-		
+
+		adjacency = matrix
 		print "allocating graph"
 		
 		G = nx.Graph()
-		for i in range(0,len(namelist[:LIMIT])):
-			for j in range(0,len(namelist[:LIMIT])):
-				G.add_edge(i,j,weight=adjacency[j][i])
+		max = 0
+		for i in range(0,len(namelist[:LIMIT])-1):
+			for j in range(0,len(namelist[:LIMIT])-i-1):
+				if (adjacency[i][j] > max):
+					max = adjacency[i][j]
+		for i in range(0,len(namelist[:LIMIT])-1):
+			for j in range(0,len(namelist[:LIMIT])-i-1):
+				G.add_edge(i,i+j+1,weight=max-adjacency[i][j])
+				G.add_edge(i+j+1,i,weight=max-adjacency[i][j])
 		pos = nx.spring_layout(G,3)
-		#nx.draw(G,pos)
-		#plt.show()
 		
 		save(namelist,pos,c,LIMIT)
+		conn.commit()
 		
 		if _debug == 1:
 			print "done."
