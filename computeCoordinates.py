@@ -128,7 +128,10 @@ def getVectors(name,channel,cursor):
 def weightedNorm(a,b,weights,norm=2):
 	sum = 0
 	for i in range(0,len(a)):
-		sum += (abs((a[i]-b[i]))*weights[i]) ** norm
+		if (norm != 1):
+			sum += (abs((a[i]-b[i]))*weights[i]) ** norm
+		else:
+			sum += (abs((a[i]-b[i]))*weights[i])
 	return numpy.float64(sum) ** (1.0/norm)
 
 def setUpDatabase(database):
@@ -185,6 +188,7 @@ if __name__=="__main__":
 		length = min(LIMIT,len(namelist))
 		start = time.time()
 		last = start
+		#TODO: aptimisation: use arrays instead of dict()s
 		representants = dict()
 		for name in namelist[:LIMIT]:
 			representants[name[0]] = dict()
@@ -206,7 +210,7 @@ if __name__=="__main__":
 						for j in range(i,len(representants[namelist[nameb][0]])):
 							a = representants[namelist[name][0]][channel[0]][i] - numpy.transpose(avg)
 							b = representants[namelist[nameb][0]][channel[0]][j] - numpy.transpose(avg)
-							dist = weightedNorm(a,b,eigval,2)
+							dist = weightedNorm(a,b,eigval,1)
 							distance.append(dist)
 				#dist now holds the distances in the upper triangle-matrix
 				sum = 0;
